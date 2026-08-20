@@ -1,0 +1,12 @@
+Apple
+3
+0.50
+Banana
+6
+0.25
+Cherry
+12
+2.00
+Date
+4
+5.75

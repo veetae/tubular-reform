@@ -1,0 +1,8 @@
+Widget
+100
+9.99
+Gadget
+250
+Gizmo
+75
+4.25
