@@ -23,3 +23,6 @@ htmlcov/
 .vscode/
 .idea/
 .DS_Store
+
+# CLI-Anything preview bundles / live sessions
+.cli-anything/
