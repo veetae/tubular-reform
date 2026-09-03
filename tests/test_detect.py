@@ -124,6 +124,16 @@ def test_single_tab_row_is_enough():
     assert result.method == "tab-width"
 
 
+def test_blank_tsv_lines_do_not_veto_tab_width():
+    # A second trailing newline and an interior blank line must not count as
+    # width 1; every non-empty line is still 3-wide.
+    text = "a\tb\tc\n\nd\te\tf\n\n"
+    cells = ["a", "b", "c", "", "d", "e", "f", ""]
+    result = detect_ncols(cells, text=text)
+    assert result.ncols == 3
+    assert result.method == "tab-width"
+
+
 def test_ragged_tab_widths_do_not_use_mode():
     # Mixed 2-wide and 3-wide rows: using the mode would slide cells.
     text = "a\tb\nc\td\te\nf\tg\n"

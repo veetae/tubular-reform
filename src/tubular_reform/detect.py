@@ -104,7 +104,9 @@ def _tab_row_widths(text: str) -> list[int] | None:
         body = body[:-1]
     if body == "":
         return None
-    return [len(line.split("\t")) for line in body.split("\n")]
+    # Empty lines are not rows: "".split("\t") is [""] (width 1), which would
+    # veto a unanimous k-wide table. Skip them so only non-empty lines vote.
+    return [len(line.split("\t")) for line in body.split("\n") if line]
 
 
 def _detect_tab_width(text: str | None) -> DetectResult | None:
