@@ -13,15 +13,36 @@ column position is never lost:
   re-flowed to the right column count.
 * Each cell is stripped of surrounding whitespace by default; a whitespace-only
   cell becomes "" (an empty *kept* cell), never dropped.
+
+Splitting on newline *or* tab in one pass is equivalent to the older
+"split lines, then if any line had a tab, split every line on tabs" sequence,
+without a normalized copy, a lines list, and a cells list all live at once.
 """
 
 from __future__ import annotations
 
+import re
+
 __all__ = ["tokenize", "normalize_newlines"]
+
+# One scan splits CRLF / CR / LF / tab. Order matters: CRLF before CR.
+_CELL_SPLIT = re.compile(r"\r\n|\r|\n|\t")
 
 
 def normalize_newlines(text: str) -> str:
+    """CRLF/CR -> LF. Fast-path when the paste is already LF-only."""
+    if "\r" not in text:
+        return text
     return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def _drop_one_trailing_newline(text: str) -> str:
+    """Remove exactly one trailing CRLF, CR, or LF (final-line-break artifact)."""
+    if text.endswith("\r\n"):
+        return text[:-2]
+    if text.endswith("\n") or text.endswith("\r"):
+        return text[:-1]
+    return text
 
 
 def tokenize(text: str, *, strip: bool = True) -> list[str]:
@@ -35,26 +56,22 @@ def tokenize(text: str, *, strip: bool = True) -> list[str]:
     Returns:
         The flat list of cells in reading order. Empty input -> ``[]``.
     """
-    text = normalize_newlines(text)
     if text == "":
         return []
-    # Drop exactly one trailing newline (final-line-break artifact), not interior ones.
-    if text.endswith("\n"):
-        text = text[:-1]
-    if text == "":
+    core = _drop_one_trailing_newline(text)
+    if core == "":
         # Input was a single newline / all trailing breaks collapsed to nothing.
         return [""]
 
-    lines = text.split("\n")
-    has_tabs = any("\t" in line for line in lines)
-
-    cells: list[str] = []
-    if has_tabs:
-        for line in lines:
-            cells.extend(line.split("\t"))
+    # LF-only, no tabs: one C-level split. Otherwise one regex scan for mixed
+    # line endings and already-delimited (tab) pastes.
+    if "\t" not in core and "\r" not in core:
+        parts = core.split("\n")
     else:
-        cells = lines
+        parts = _CELL_SPLIT.split(core)
 
-    if strip:
-        cells = [c.strip() for c in cells]
-    return cells
+    if not strip:
+        return parts
+    for i, cell in enumerate(parts):
+        parts[i] = cell.strip()
+    return parts

@@ -26,12 +26,22 @@ EXIT_ERROR = 4
 # --------------------------------------------------------------------------- #
 # Clipboard access (lazy import, graceful degradation)
 # --------------------------------------------------------------------------- #
+_pyperclip_mod = None
+_pyperclip_checked = False
+
+
 def _clipboard():
     """Return the pyperclip module, or None if it is unusable on this host."""
+    global _pyperclip_mod, _pyperclip_checked
+    if _pyperclip_checked:
+        return _pyperclip_mod
+    _pyperclip_checked = True
     try:
         import pyperclip  # noqa: WPS433 (intentional lazy import)
     except Exception:  # pragma: no cover - import guard
+        _pyperclip_mod = None
         return None
+    _pyperclip_mod = pyperclip
     return pyperclip
 
 
@@ -154,11 +164,13 @@ def main(argv: list[str] | None = None) -> int:
             print(msg, file=sys.stderr)
 
     # ---- read input ---------------------------------------------------------
+    # Clipboard: one paste. Tests patch get_clipboard_text; a failed paste is
+    # treated as "no backend" so we do not probe with paste() then paste again.
     text = ""
     if use_clipboard:
-        if clipboard_available():
+        try:
             text = get_clipboard_text()
-        else:
+        except Exception:
             warn(
                 "tubular-reform: no working clipboard backend "
                 "(install pyperclip and a copy/paste tool). Falling back to stdin."
@@ -169,6 +181,8 @@ def main(argv: list[str] | None = None) -> int:
                 return EXIT_NO_INPUT
             text = sys.stdin.read()
     else:
+        # Full read: tokenize/detect need the whole paste (tab-anywhere rule).
+        # Streaming stdin is deferred until huge non-clipboard inputs are a target.
         text = sys.stdin.read()
 
     cells = tokenize(text, strip=args.strip)

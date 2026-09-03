@@ -42,10 +42,23 @@ def test_only_newline_yields_single_blank_cell():
     assert tokenize("\n") == [""]
 
 
+def test_two_newlines_yield_two_blank_cells():
+    assert tokenize("\n\n") == ["", ""]
+
+
+def test_trailing_crlf_dropped_once():
+    assert tokenize("a\r\nb\r\nc\r\n") == ["a", "b", "c"]
+
+
 def test_tab_delimited_input_is_split_and_flattened():
     # Already-a-table (possibly wrong width) -> flatten so it can be re-flowed.
     text = "a\tb\tc\nd\te\tf"
     assert tokenize(text) == ["a", "b", "c", "d", "e", "f"]
+
+
+def test_crlf_table_with_tabs_flattens_in_one_pass():
+    text = "a\tb\r\nc\td\r\n"
+    assert tokenize(text) == ["a", "b", "c", "d"]
 
 
 def test_mixed_tab_and_plain_lines():

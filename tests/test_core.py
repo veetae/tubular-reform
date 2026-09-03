@@ -162,3 +162,10 @@ def test_reflow_does_not_mutate_input_list():
     original = list(cells)
     reflow(cells, 2)
     assert cells == original
+
+
+def test_reflow_accepts_tuple_without_requiring_a_list():
+    r = reflow(("a", "b", "c", "d"), 2)
+    assert r.rows == [["a", "b"], ["c", "d"]]
+    r = reflow(("a", "b", "c"), 2)
+    assert r.rows == [["a", "b"], ["c", "-"]]

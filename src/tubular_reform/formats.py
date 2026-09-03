@@ -16,35 +16,39 @@ __all__ = ["FORMATS", "render", "to_tsv", "to_csv", "to_markdown"]
 FORMATS = ("tsv", "csv", "md")
 
 
-def _rows_with_header(result: ReflowResult) -> tuple[list[str] | None, list[list[str]]]:
-    return result.header, result.rows
+def _tsv_clean(cell: str) -> str:
+    """Neutralize tabs/newlines. Skip the replaces when the cell is already safe."""
+    if "\t" not in cell and "\r" not in cell and "\n" not in cell:
+        return cell
+    return cell.replace("\t", " ").replace("\r", " ").replace("\n", " ")
 
 
 def to_tsv(result: ReflowResult) -> str:
     """Tab-separated values. Tabs/newlines inside a cell are neutralized to
     spaces so a cell can never break the row/column structure it lives in."""
-    header, rows = _rows_with_header(result)
-    all_rows = ([header] if header is not None else []) + rows
-
-    def clean(cell: str) -> str:
-        return cell.replace("\t", " ").replace("\r", " ").replace("\n", " ")
-
-    return "\n".join("\t".join(clean(c) for c in row) for row in all_rows)
+    chunks: list[str] = []
+    if result.header is not None:
+        chunks.append("\t".join(_tsv_clean(c) for c in result.header))
+    for row in result.rows:
+        chunks.append("\t".join(_tsv_clean(c) for c in row))
+    return "\n".join(chunks)
 
 
 def to_csv(result: ReflowResult) -> str:
     """RFC 4180 CSV via the stdlib csv module (handles quoting/escaping)."""
-    header, rows = _rows_with_header(result)
-    all_rows = ([header] if header is not None else []) + rows
     buf = io.StringIO()
     # lineterminator="\n" keeps output platform-neutral and test-stable.
     writer = csv.writer(buf, lineterminator="\n")
-    writer.writerows(all_rows)
+    if result.header is not None:
+        writer.writerow(result.header)
+    writer.writerows(result.rows)
     return buf.getvalue().rstrip("\n")
 
 
 def _md_escape(cell: str) -> str:
     # Pipes would break table columns; newlines would break rows.
+    if "\\" not in cell and "|" not in cell and "\n" not in cell and "\r" not in cell:
+        return cell
     return (
         cell.replace("\\", "\\\\")
         .replace("|", "\\|")
@@ -62,29 +66,36 @@ def to_markdown(result: ReflowResult) -> str:
     silently consuming the first data row — no data is lost or reinterpreted.
     Columns are space-padded so the raw text is also readable.
     """
-    header, rows = _rows_with_header(result)
     ncols = result.ncols
+    header = result.header
     if header is None:
         header = [f"Column {i + 1}" for i in range(ncols)]
 
-    esc_header = [_md_escape(c) for c in header]
-    esc_rows = [[_md_escape(c) for c in row] for row in rows]
+    widths = [3] * ncols  # min 3 for the '---' rule
+    esc_header: list[str] = []
+    for i in range(ncols):
+        cell = header[i] if i < len(header) else ""
+        escaped = _md_escape(cell)
+        esc_header.append(escaped)
+        widths[i] = max(widths[i], len(escaped))
 
-    # Compute display width per column for alignment (min 3 for the '---' rule).
-    widths = [max(3, len(esc_header[i])) for i in range(ncols)]
-    for row in esc_rows:
+    esc_rows: list[list[str]] = []
+    for row in result.rows:
+        esc_row: list[str] = []
         for i in range(ncols):
-            if i < len(row):
-                widths[i] = max(widths[i], len(row[i]))
+            cell = row[i] if i < len(row) else ""
+            escaped = _md_escape(cell)
+            esc_row.append(escaped)
+            widths[i] = max(widths[i], len(escaped))
+        esc_rows.append(esc_row)
 
     def fmt_row(cells: list[str]) -> str:
-        padded = [
-            (cells[i] if i < len(cells) else "").ljust(widths[i]) for i in range(ncols)
-        ]
+        padded = [cells[i].ljust(widths[i]) for i in range(ncols)]
         return "| " + " | ".join(padded) + " |"
 
     sep = "| " + " | ".join("-" * widths[i] for i in range(ncols)) + " |"
-    lines = [fmt_row(esc_header), sep] + [fmt_row(r) for r in esc_rows]
+    lines = [fmt_row(esc_header), sep]
+    lines.extend(fmt_row(r) for r in esc_rows)
     return "\n".join(lines)
 
 

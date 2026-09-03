@@ -241,7 +241,10 @@ def test_clipboard_strict_refuses_does_not_overwrite(fake_clip, capsys):
 
 
 def test_clipboard_unavailable_with_tty_reports_no_input(monkeypatch, capsys):
-    monkeypatch.setattr(cli, "clipboard_available", lambda: False)
+    def _no_clip():
+        raise RuntimeError("pyperclip is not installed")
+
+    monkeypatch.setattr(cli, "get_clipboard_text", _no_clip)
     monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True)
     rc = cli.main(["-c", "3", "--clipboard"])
     assert rc == cli.EXIT_NO_INPUT

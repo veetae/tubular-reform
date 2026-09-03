@@ -18,6 +18,7 @@ either pads-and-flags the short trailing row or, under ``strict=True``, raises
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 __all__ = [
@@ -115,12 +116,21 @@ class RaggedError(ValueError):
         self.result = result
 
 
-def _chunk(cells: list[str], ncols: int) -> list[list[str]]:
-    return [cells[i : i + ncols] for i in range(0, len(cells), ncols)]
+def _chunk_from(cells: Sequence[str], start: int, ncols: int) -> list[list[str]]:
+    """Row-major wrap of ``cells[start:]``.
+
+    List slices are already new lists; other sequences are materialized once
+    per row so padding can extend a short trailing row in place.
+    """
+    rows: list[list[str]] = []
+    for i in range(start, len(cells), ncols):
+        piece = cells[i : i + ncols]
+        rows.append(piece if isinstance(piece, list) else list(piece))
+    return rows
 
 
 def reflow(
-    cells: list[str],
+    cells: Sequence[str],
     ncols: int,
     *,
     pad: str = "-",
@@ -155,20 +165,21 @@ def reflow(
         raise ValueError(f"ncols must be >= 1, got {ncols}")
 
     header_row: list[str] | None = None
-    body = list(cells)
-
+    start = 0
     if header:
-        header_row = body[:ncols]
-        body = body[ncols:]
+        n_take = min(ncols, len(cells))
+        raw = cells[:n_take]
+        header_row = raw if isinstance(raw, list) else list(raw)
+        start = n_take
         # Pad an incomplete header so the grid stays rectangular; flag it.
         if 0 < len(header_row) < ncols:
             header_row = header_row + [pad] * (ncols - len(header_row))
 
-    total = len(body)
+    total = len(cells) - start
     remainder = total % ncols
     is_clean = remainder == 0
 
-    grid = _chunk(body, ncols)
+    grid = _chunk_from(cells, start, ncols)
 
     # Identify every row whose real width != ncols. For a flat reshape only the
     # last row can be short, but computing it generally keeps the invariant
@@ -203,12 +214,11 @@ def reflow(
             result,
         )
 
-    # Non-strict: pad the short trailing row and flag it. Never shift anything.
-    padded_grid = [list(row) for row in grid]
+    # Non-strict: pad short rows in place. _chunk_from already gave us our own
+    # row lists, so only the affected row is extended — never a full grid copy.
     for issue in issues:
-        row = padded_grid[issue.index]
+        row = grid[issue.index]
         if len(row) < ncols:
             row.extend([pad] * (ncols - len(row)))
-    result.rows = padded_grid
     result.padded = True
     return result
