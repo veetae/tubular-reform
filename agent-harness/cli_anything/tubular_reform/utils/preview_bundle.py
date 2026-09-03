@@ -207,7 +207,7 @@ def prepare_bundle(
                 "manifest": cached,
             }
 
-    now = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    now = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     bundle_id = f"{now}_{cache_key.split(':', 1)[-1][:8]}_{_slug(recipe)}"
     out_dir = bundle_root(software, recipe, project_path=project_path, root_dir=root_dir) / bundle_id
     artifacts_dir = out_dir / "artifacts"

@@ -6,9 +6,11 @@ If the library is missing, fail with install instructions — no fallback reshap
 
 from __future__ import annotations
 
+import importlib
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 from typing import Any
 
 SOFTWARE_INSTALL = (
@@ -20,12 +22,63 @@ SOFTWARE_INSTALL = (
 
 
 def require_library():
-    """Import the real tubular_reform package or raise with install help."""
+    """Import the real tubular_reform package or raise with install help.
+
+    The harness lives at ``cli_anything.tubular_reform``. If ``cli_anything/`` is
+    on ``sys.path`` (pytest import mode), a bare ``import tubular_reform`` can
+    bind this harness package instead of the library. Prefer the repo ``src/``
+    tree and drop a shadowed module before importing.
+    """
+    harness_pkg = Path(__file__).resolve().parents[1]
+    cli_anything_dir = Path(__file__).resolve().parents[2]
+    repo_src = Path(__file__).resolve().parents[4] / "src"
+
+    def _is_harness_module(mod) -> bool:
+        fp = getattr(mod, "__file__", None)
+        if not fp:
+            return not hasattr(mod, "reflow")
+        try:
+            resolved = Path(fp).resolve()
+        except OSError:
+            return False
+        return resolved == (harness_pkg / "__init__.py").resolve() or (
+            cli_anything_dir in resolved.parents and "src" not in resolved.parts
+        )
+
+    def _purge_shadow() -> None:
+        for key in list(sys.modules):
+            if key != "tubular_reform" and not key.startswith("tubular_reform."):
+                continue
+            mod = sys.modules.get(key)
+            if mod is not None and _is_harness_module(mod):
+                del sys.modules[key]
+
+    _purge_shadow()
+    old_path = sys.path[:]
+    cleaned: list[str] = []
+    skip = {str(cli_anything_dir.resolve()), str(harness_pkg.resolve())}
+    for entry in old_path:
+        try:
+            absolute = str(Path(entry).resolve())
+        except OSError:
+            cleaned.append(entry)
+            continue
+        if absolute in skip:
+            continue
+        cleaned.append(entry)
+    prepend = [str(repo_src)] if repo_src.is_dir() else []
+    sys.path[:] = prepend + cleaned
     try:
-        import tubular_reform
-    except ImportError as exc:
-        raise RuntimeError(SOFTWARE_INSTALL) from exc
-    return tubular_reform
+        _purge_shadow()
+        try:
+            lib = importlib.import_module("tubular_reform")
+        except ImportError as exc:
+            raise RuntimeError(SOFTWARE_INSTALL) from exc
+        if _is_harness_module(lib) or not hasattr(lib, "reflow"):
+            raise RuntimeError(SOFTWARE_INSTALL)
+        return lib
+    finally:
+        sys.path[:] = old_path
 
 
 def find_native_cli() -> str:

@@ -95,4 +95,19 @@ Real inputs: repo `examples/1-clean-produce.in.txt`,
 
 ## Phase 6 results
 
-*(appended after `pytest -v --tb=no`)*
+```text
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.1.1
+collected 38 items
+
+cli_anything/tubular_reform/tests/test_core.py ........................   [ 60%]
+cli_anything/tubular_reform/tests/test_full_e2e.py ..............         [100%]
+
+============================== 38 passed in 1.16s ==============================
+```
+
+**Summary:** 38 passed, 0 failed. Library suite at repo root: 97 passed, 1 skipped (clipboard backend present).
+
+**Force-installed subprocess:** `CLI_ANYTHING_FORCE_INSTALLED=1` used `/home/ubuntu/.local/bin/cli-anything-tubular-reform` (`[_resolve_cli] Using installed command`).
+
+**Coverage notes:** Unit tests cover project/session/table/export/preview against the real `tubular_reform` library. E2E uses repo `examples/*.in.txt`, native `tubular-reform` TSV parity, ragged strict refusal, preview-bundle/v1, live `trajectory_summary`, and installed-command subprocess tests. Clipboard round-trip is not exercised in the harness (headless); the library CLI test covers that when a backend exists.
