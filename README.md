@@ -66,7 +66,11 @@ gracefully to stdin/stdout with a clear message.
 ## Usage
 
 ```bash
-# Clipboard in -> clipboard out (the common case): copy the flat text, run:
+# Clipboard in -> clipboard out. If the cells alternate types
+# (name / number / number, …) you can omit -c:
+tubular-reform
+
+# Same, but you already know it is 6 columns:
 tubular-reform -c 6
 
 # Piped stdin -> stdout:
@@ -135,7 +139,7 @@ without emitting a table** — nothing downstream ever consumes a misaligned gri
 
 | Flag | Meaning |
 |------|---------|
-| `-c, --cols N` | Number of columns to reflow into (required, ≥ 1). |
+| `-c, --cols N` | Number of columns to reflow into (≥ 1). Omit to auto-detect from a repeating type pattern (text / number / date) or from a consistent tab-delimited row width. All-text (or all-number) lists have no type signal, so they still need `-c`. |
 | `-f, --format {tsv,csv,md}` | Output format. Default `tsv` (pastes into spreadsheets). |
 | `--pad STR` | Fill for a short trailing row. Default `-`. |
 | `--header` | Treat the first `N` cells as a header row. |
@@ -167,6 +171,11 @@ Status and raggedness messages go to **stderr**, so piping stdout stays clean.
 - **Already-delimited input** (a table that was pasted with tabs but at the wrong
   width) is flattened and re-flowed to the column count you ask for.
 - **Unicode** passes through untouched.
+- **Column auto-detect:** omitting `-c` looks for a repeating cell-type
+  pattern (text / number / date) across at least two rows, or a unanimous
+  tab-delimited row width. If the list is all text (or all numbers), or two
+  widths score the same, it **refuses** and asks for `-c` rather than guessing.
+  An explicit `-c` always wins.
 - **Safe serialization:** TSV neutralizes embedded tabs/newlines; CSV uses RFC-
   4180 quoting; Markdown escapes `|` and encodes newlines as `<br>`, so a cell's
   content can never break the table structure. When no header is given, Markdown
@@ -177,7 +186,9 @@ Status and raggedness messages go to **stderr**, so piping stdout stays clean.
 The core is a pure, deterministic function with no I/O:
 
 ```python
-from tubular_reform import reflow, render
+from tubular_reform import reflow, render, detect_ncols
+
+detect_ncols(["Apple", "3", "0.50", "Banana", "6", "0.25"]).ncols  # 3
 
 result = reflow(["a", "b", "c", "d", "e"], ncols=3)   # ragged
 result.is_clean          # False

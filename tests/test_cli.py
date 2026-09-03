@@ -94,10 +94,47 @@ def test_empty_input_is_noop_exit_0():
     assert p.stdout.strip() == ""
 
 
-def test_missing_cols_is_usage_error():
-    p = run_cli("a\nb\n")  # no -c
+def test_missing_cols_auto_detects_mixed_types():
+    p = run_cli("Apple\n3\n0.50\nBanana\n6\n0.25\n")  # no -c
+    assert p.returncode == 0
+    assert p.stdout.rstrip("\n") == "Apple\t3\t0.50\nBanana\t6\t0.25"
+    assert "detected 3 column" in p.stderr
+
+
+def test_missing_cols_without_signal_is_usage_error():
+    p = run_cli("a\nb\n")  # no -c, all text, too few cells
     assert p.returncode == 2
-    assert "cols" in p.stderr.lower()
+    assert "auto-detect" in p.stderr.lower() or "pass -c" in p.stderr.lower()
+
+
+def test_auto_detect_all_text_refuses():
+    p = run_cli("a\nb\nc\nd\ne\nf\n")
+    assert p.returncode == 2
+    assert "pass -c" in p.stderr.lower()
+
+
+def test_auto_detect_tab_width():
+    p = run_cli("a\tb\tc\nd\te\tf\n")
+    assert p.returncode == 0
+    assert p.stdout.rstrip("\n") == "a\tb\tc\nd\te\tf"
+    assert "tab width" in p.stderr
+
+
+def test_auto_detect_with_header_flag():
+    p = run_cli(
+        "Name\nQty\nPrice\nApple\n3\n0.50\nBanana\n6\n0.25\n",
+        "--header",
+    )
+    assert p.returncode == 0
+    assert p.stdout.splitlines()[0] == "Name\tQty\tPrice"
+    assert "Apple\t3\t0.50" in p.stdout
+
+
+def test_explicit_cols_overrides_auto_detect():
+    # Mixed-type 3-col data forced into 2 columns — user said 2, so 2.
+    p = run_cli("Apple\n3\n0.50\nBanana\n6\n0.25\n", "-c", "2")
+    assert p.returncode == 0
+    assert p.stdout.splitlines()[0] == "Apple\t3"
 
 
 def test_cols_zero_rejected():
@@ -121,6 +158,7 @@ def test_help_mentions_examples():
     assert p.returncode == 0
     assert "Examples" in p.stdout
     assert "clipboard" in p.stdout.lower()
+    assert "auto-detect" in p.stdout.lower()
 
 
 def test_quiet_suppresses_summary():
@@ -138,8 +176,10 @@ def test_tab_delimited_reflow_end_to_end():
 
 def test_forced_clipboard_without_backend_falls_back_to_stdin():
     # On a headless host (no clipboard backend) --clipboard should degrade to
-    # stdin/stdout rather than crash. If a backend *does* exist, the reformed
-    # table is still echoed to stdout, so this assertion holds either way.
+    # stdin/stdout rather than crash. Skip when this machine has a live
+    # clipboard: the CLI then reads the clipboard instead of the piped stdin.
+    if cli.clipboard_available():
+        pytest.skip("host has a working clipboard backend")
     env = dict(os.environ)
     env["PYTHONPATH"] = SRC + os.pathsep + env.get("PYTHONPATH", "")
     p = subprocess.run(
@@ -208,12 +248,24 @@ def test_clipboard_unavailable_with_tty_reports_no_input(monkeypatch, capsys):
     assert "clipboard" in capsys.readouterr().err.lower()
 
 
+def test_clipboard_auto_detects_cols(fake_clip, capsys):
+    fake_clip.text = "Apple\n3\n0.50\nBanana\n6\n0.25\n"
+    rc = cli.main([])
+    assert rc == 0
+    assert fake_clip.text == "Apple\t3\t0.50\nBanana\t6\t0.25"
+    err = capsys.readouterr().err
+    assert "detected 3 column" in err
+
+
 def test_decide_use_clipboard_logic():
     parser = cli.build_parser()
-    # Auto + piped stdin -> stdin mode.
+    # Auto + piped stdin -> stdin mode. -c is optional.
     args = parser.parse_args(["-c", "3"])
     assert cli._decide_use_clipboard(args, stdin_is_tty=False) is False
     # Auto + interactive -> clipboard mode.
+    assert cli._decide_use_clipboard(args, stdin_is_tty=True) is True
+    args = parser.parse_args([])
+    assert args.cols is None
     assert cli._decide_use_clipboard(args, stdin_is_tty=True) is True
     # Explicit --stdin always stdin.
     args = parser.parse_args(["-c", "3", "--stdin"])

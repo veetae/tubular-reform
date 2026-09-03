@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tubular-reform"
-version = "0.1.0"
+version = "0.2.0"
 description = "Reform flattened 'tubular' text (one cell per line) back into a real table — ragged-safe, clipboard-native."
 readme = "README.md"
 requires-python = ">=3.10"

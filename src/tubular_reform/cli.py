@@ -12,6 +12,7 @@ import sys
 
 from . import __version__
 from .core import RaggedError, reflow
+from .detect import DetectError, detect_ncols
 from .formats import FORMATS, render
 from .tokenize import tokenize
 
@@ -73,6 +74,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         epilog=(
             "Examples:\n"
+            "  tubular-reform                      # auto-detect cols; clipboard in/out\n"
             "  tubular-reform -c 6                 # clipboard in -> clipboard out\n"
             "  cat dump.txt | tubular-reform -c 4  # stdin -> stdout\n"
             "  tubular-reform -c 3 -f md --header  # markdown, first 3 cells = header\n"
@@ -81,8 +83,12 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p.add_argument(
-        "-c", "--cols", type=int, required=True, metavar="N",
-        help="number of columns to reflow into (required, >= 1)",
+        "-c", "--cols", type=int, default=None, metavar="N",
+        help=(
+            "number of columns to reflow into (>= 1). "
+            "Omit to auto-detect from a repeating type pattern "
+            "(text/number/date) or from a consistent tab-delimited row width"
+        ),
     )
     p.add_argument(
         "-f", "--format", choices=FORMATS, default="tsv",
@@ -137,7 +143,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    if args.cols < 1:
+    if args.cols is not None and args.cols < 1:
         parser.error("--cols must be >= 1")
 
     stdin_is_tty = sys.stdin.isatty()
@@ -173,10 +179,26 @@ def main(argv: list[str] | None = None) -> int:
             pass  # nothing to print
         return EXIT_OK
 
+    if args.cols is None:
+        try:
+            detected = detect_ncols(cells, text=text)
+        except DetectError as exc:
+            print(f"tubular-reform: {exc}", file=sys.stderr)
+            if exc.candidates:
+                shown = ", ".join(
+                    f"{n} ({s:.2f})" for n, s in exc.candidates[:5]
+                )
+                print(f"  candidates: {shown}", file=sys.stderr)
+            return 2
+        ncols = detected.ncols
+        warn(f"tubular-reform: {detected.describe()}.")
+    else:
+        ncols = args.cols
+
     # ---- reflow -------------------------------------------------------------
     try:
         result = reflow(
-            cells, args.cols, pad=args.pad, header=args.header, strict=args.strict,
+            cells, ncols, pad=args.pad, header=args.header, strict=args.strict,
         )
     except RaggedError as exc:
         print(f"tubular-reform: {exc}", file=sys.stderr)
