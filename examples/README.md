@@ -11,6 +11,8 @@ tubular-reform                 --stdin < 1-clean-produce.in.txt   # auto-detects
 tubular-reform -c 3            --stdin < 2-ragged-missing-cell.in.txt
 tubular-reform -c 2 -f csv     --stdin < 3-trailing-row.in.txt
 tubular-reform -c 3 -f md --header --stdin < 4-markdown-header.in.txt
+tubular-reform                 --stdin < 5-cbc-panel.in.txt          # auto-detects 3
+tubular-reform                 --stdin < 6-column-major-refused.in.txt  # refuses, exit 2
 ```
 
 ---
@@ -48,3 +50,20 @@ missing cell is at the end, so `dave` gets a `-` and you are told row 4 was shor
 The first 3 cells (`Country`, `Capital`, `Population`) are treated as a header
 (`--header`) and the rest rendered as a GitHub-flavored Markdown table
 (`-f md`), columns aligned. Output: `4-markdown-header.out.md`.
+
+## 5 — lab-style panel, auto-detected (`5-cbc-panel`)
+
+A flattened lab-style panel (**synthetic values, not real results**): analyte /
+value / reference-range repeating. The type pattern text / number / text is a
+strong signal, so omitting `-c` auto-detects 3 columns. Output:
+`5-cbc-panel.out.tsv`.
+
+## 6 — column-major layout: refused by design (`6-column-major-refused`)
+
+The same panel flattened **column-major** — all four analyte names first, then
+all four values. Read row-wise there is no repeating type pattern, and wrapping
+it to any width would produce a transposed, wrongly-labeled table. Auto-detect
+therefore **refuses** (exit 2) with the message in
+`6-column-major-refused.stderr.txt` and asks for `-c`. Reconstructing
+column-major input is a roadmap item, not a current feature — refusing is the
+correct behavior today.

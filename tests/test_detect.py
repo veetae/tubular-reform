@@ -64,9 +64,9 @@ def test_header_row_does_not_break_type_period():
 
 def test_date_column_in_ehr_like_rows():
     cells = [
-        "Alice", "1980-01-01", "active",
-        "Bob", "1975-12-31", "inactive",
-        "Cara", "1990-06-15", "active",
+        "row1", "1980-01-01", "active",
+        "row2", "1975-12-31", "inactive",
+        "row3", "1990-06-15", "active",
     ]
     result = detect_ncols(cells)
     assert result.ncols == 3

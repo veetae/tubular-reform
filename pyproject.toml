@@ -9,7 +9,7 @@ description = "Reform flattened 'tubular' text (one cell per line) back into a r
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "tubular-reform contributors" }]
+authors = [{ name = "Veeravat Tae" }]
 keywords = [
     "table",
     "clipboard",
@@ -42,7 +42,7 @@ Repository = "https://github.com/veetae/tubular-reform"
 Issues = "https://github.com/veetae/tubular-reform/issues"
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0"]
+dev = ["pytest>=7.0", "ruff>=0.5"]
 
 [project.scripts]
 tubular-reform = "tubular_reform.cli:main"
@@ -56,3 +56,12 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+# Correctness-only gate: pyflakes + pycodestyle errors. Style rules are
+# intentionally not enforced.
+select = ["E4", "E7", "E9", "F"]

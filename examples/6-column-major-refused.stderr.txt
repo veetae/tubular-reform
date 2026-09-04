@@ -1,0 +1,2 @@
+tubular-reform: could not auto-detect column count (no repeating type pattern scored >= 0.85; pass -c N)
+  candidates: 2 (0.67), 3 (0.62), 4 (0.50)

@@ -1,5 +1,8 @@
 # tubular-reform
 
+[![CI](https://github.com/veetae/tubular-reform/actions/workflows/ci.yml/badge.svg)](https://github.com/veetae/tubular-reform/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **Reform flattened "tubular" text back into a real table — without silently
 misaligning columns.**
 
@@ -56,12 +59,16 @@ It never shifts your data into the wrong columns behind your back.
 ## Install
 
 ```bash
-pip install tubular-reform
+pip install tubular-reform      # or, isolated on your PATH:
+pipx install tubular-reform
 ```
 
 Python 3.10+. The only dependency is [`pyperclip`](https://pypi.org/project/pyperclip/)
 for clipboard access. On headless Linux (no clipboard backend) the tool degrades
 gracefully to stdin/stdout with a clear message.
+
+Want a single-file Windows `.exe` (no Python on the target machine)? Build one
+with PyInstaller — see [Windows: one-click launcher](#windows-one-click-launcher-optional).
 
 ## Usage
 
@@ -116,6 +123,38 @@ with `-f md` →
 | Banana   | 6        | 0.25     |
 | Cherry   | 12       | 2.00     |
 ```
+
+### A realistic example: a flattened lab-style panel
+
+Copy a results table from a PDF or a web viewer and the clipboard often arrives
+as a flat vertical mess (values below are **synthetic**, invented for the demo):
+
+```
+WBC
+6.4
+4.0-11.0
+HGB
+14.2
+13.5-17.5
+PLT
+212
+150-400
+MCV
+88.1
+80-100
+```
+
+`tubular-reform` (no `-c` needed — the analyte / value / range type pattern
+auto-detects as 3 columns) →
+
+```
+WBC	6.4	4.0-11.0
+HGB	14.2	13.5-17.5
+PLT	212	150-400
+MCV	88.1	80-100
+```
+
+…already back on your clipboard, ready to paste into a spreadsheet.
 
 ### The ragged case (the reason to use this)
 
@@ -181,6 +220,52 @@ Status and raggedness messages go to **stderr**, so piping stdout stays clean.
   content can never break the table structure. When no header is given, Markdown
   synthesizes `Column 1..N` rather than silently promoting your first data row.
 
+## Windows: one-click launcher (optional)
+
+The everyday flow — copy table, run tool, paste result — works nicely as a
+double-clickable desktop icon that never flashes a console window.
+
+1. **Freeze a single-file exe** (once, on any Windows box with Python):
+
+   ```bat
+   pip install tubular-reform pyinstaller
+   echo from tubular_reform.cli import main; raise SystemExit(main()) > tr_entry.py
+   pyinstaller --onefile --name tubular-reform tr_entry.py
+   ```
+
+   `dist\tubular-reform.exe` is now standalone — copy it anywhere (no Python
+   needed on the target machine). If Python/pip is fine on the machine, skip
+   this step and use the installed `tubular-reform` command directly.
+
+2. **Hide the console** with a two-line `.vbs` wrapper, e.g.
+   `tubular-reform.vbs` next to the exe:
+
+   ```vb
+   Set sh = CreateObject("Wscript.Shell")
+   sh.Run """C:\path\to\tubular-reform.exe"" -q", 0, False
+   ```
+
+   (`0` = no window. Add flags like `-c 6` or `-f md` inside the quoted
+   command as needed.)
+
+3. **Desktop shortcut**: right-click the `.vbs` → *Send to → Desktop
+   (create shortcut)*, give it a name/icon. From then on: copy the flattened
+   table, double-click the icon, paste the fixed table.
+
+## Limitations (honest scope)
+
+- **Column-major / vertically-stacked layouts are not reconstructed yet.** If
+  the clipboard arrives as *all of column 1, then all of column 2* (rather
+  than row-by-row), no row-wise pattern exists; auto-detect refuses rather
+  than emitting a transposed grid (see `examples/6-column-major-refused`).
+  Reconstructing column-major input is on the roadmap.
+- **OCR-mangled input is out of scope.** Merged or split cells, garbled
+  glyphs, and lost line breaks from OCR can't be repaired by reflowing —
+  garbage in stays garbage, just rectangular.
+- **Auto-detect needs a type signal.** All-text (or all-number) lists carry no
+  repeating pattern, so they still require `-c` — refusing to guess is the
+  design, not a bug.
+
 ## Library use
 
 The core is a pure, deterministic function with no I/O:
@@ -233,8 +318,17 @@ between "too trivial to package" and the "repair a delimited CSV" tools, and
 ```bash
 python -m venv .venv && . .venv/bin/activate
 pip install -e ".[dev]"
+ruff check .
 pytest
 ```
+
+Issues and small PRs welcome. Please run `ruff check .` and `pytest` (both run
+in CI) before submitting.
+
+An experimental interactive/agent harness for this tool, built with
+[CLI-Anything](https://github.com/HKUDS/CLI-Anything), lives on the
+`cursor/cli-anything-harness-fd9d` branch; it is not part of the released
+package.
 
 ## License
 
